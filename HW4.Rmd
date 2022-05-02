@@ -1,0 +1,194 @@
+---
+title: "HW4"
+author: "Jacob Bulzak"
+date: "5/2/2022"
+output:
+  pdf_document: default
+  md_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load, include=FALSE}
+# owning:
+library(here)
+library(tidyverse)
+library(foreach)
+library(arules)
+library(arulesViz)
+library(ggplot2)
+library(LICORS)
+library(foreach)
+library(mosaic)
+library(foreach)
+library(iterators)
+library(knitr)
+library(gridExtra)
+library(grid)
+path <- here()
+
+```
+
+## Wine Clustering and PCA
+
+I began by cleaning the data (removing outliers), followed by centering and re-scaling. After experimenting with several k-values, I decided to use k=7 which reflects the fact that there are 7 different levels of `quality` in the dataset.
+
+
+I then tried several k values and settled on 7 after comparing how well the clusters could designate red vs white wine. Next, I found that the greatest data point separation was achieved with `total.sulfur.dioxide` and `free.sulfur.dioxide` parameters, visualized below.
+
+```{r, include=TRUE}
+ggplot(wine) +
+  geom_point(aes(x=total.sulfur.dioxide,y=free.sulfur.dioxide, 
+                 color = factor(clusternumber),
+                 shape = color)) + xlab("Total Sulfur Dioxide") + ylab("Free Sulfur Dioxide")
+```
+Next, we run the PCA for this data:
+
+```{r , include=TRUE}
+winevarplot = plot(wine_PCA , main = "Wine PCA")
+```
+
+As we can observe in the plot above, the  PCA was able to explain a significant majority of the information with just one dimension. Despite this, I decided to instead use 2 dimensions to aid with visualization, and because there are two types of wine in the data set: red and white.
+
+We proceed by plotting the two princinpal components:
+
+```{r , include=TRUE, warning=FALSE}
+WineColorPlot
+```
+
+From the plot above we can observe a distinct separation in the two colors of wine. The red wines tend to have relatively high-magnitude (negative) PC1, and low positive magnitudes of PC2 (roughly between 0 and 25). The white wines on the other hand exhibit a greater dispersion in their magnitudes of PC1 and PC2.
+
+
+We introduce the following plots to determine which variables most significantly affect the principal components:
+
+```{r, include=TRUE}
+PC1barplot
+```
+
+From the figure above we see that the main feature in PC1 is `total.sulfur.dioxide`.
+
+```{r, include=TRUE}
+PC2barplot
+```
+
+We further observe that PC2 is primarily defined by `free.sulfur.dioxide`. We also see a notable lack of `total.sulfur.dioxide` which, as aforementioned, was the defining feature of PC1.
+
+Finally, I introduce the table below to provide a summary of my findings.
+
+```{r, include=TRUE}
+final_wine_table
+```
+
+Upon examining the table, several features become readily apparent. First, the clusters are quite apt at determining the color of the wines. In each cluster, one color of wine tends to dominate the other in quantity. For example, Cluster 7 contains 1220 whites and only 9 reds, whereas Cluster 1 is decidedly red, containing 898 reds and 51 whites. 
+
+Furthermore, by looking at the PC1 column we see that the reds predominantly have large negative or small positive values for PC1. Whites, on the other hand, display a somewhat inverse relationship with large positive values or small negative values for PC1. These patterns are indicative of the main differentiating factor between reds and whites being `total.sulfur.dioxide`.
+
+Finally, an interesting result from the table is that the the clusters do not do a good job of clearly distinguishing across wine qualities. The average quality does not exhibit much variance across the colors and clusters, and indeed, most of the scores fall between 4 and 6. This seems to indicate that there does not exist a clear relationship between a wine's chemical content and its quality. A possible reason for this is that while wine sommeliers (snobs) likely have refined palates, it seems improbable that they would be able to distinguish variations in a wine's chemical profile. Instead, they likely judge wines on more subjective factors such as flavor, aroma, etc. which are emergent properties of a wine's chemical composition. A more prosaic explanation could be that whatever factors differentiate say, a quality-4 wine from a quality-5 wine are minute enough to "wash out" over the course of many wine tastings.
+
+
+
+## Market Segmentation
+
+I began by cleaning the data and performing some manual compression before clustering to make analysis more straightforward down the road. Recall that the original data was grouped into 36 different categories such as `chatter`, `travel`, `politics` etc. Some of these categories were related and, it seemed most logical to group certain categories and map them onto a class of representative consumer who would likely be interested in a given set of topics. Thus sets of topics were aggregated into new columns and labeled to reflect the kind of consumer that would likely be interested in them. Some examples of the columns created are:
+
+"artist": `art`+`music`+`fashion`+`tv_film`
+"gen_z": `online_gaming`+`college_uni`+`school`
+"DIY": `home_and_garden`+`crafts`
+
+...and so on. I also decided to remove the `adult` and `spam` columns first, to get rid of any unsavory elements such as spam and pornography bots that slipped through the initial filter, and second because these categories did not seem very useful in helping NutrientH20 analyze market segments. 
+
+Finally, I also decided to drop the `chatter` column. This was done for two reasons:
+1) To further combat any spam/bots and 
+2) To ensure the tweets in the data set were more definitively aligned with a category rather than belonging to "background noise" that could obscure results  
+
+In summary, I was left with 14 columns which I used to create a correlation matrix to help visualize any notable correlations between the generated "consumer types"
+
+```{r echo = FALSE}
+ggcorrplot::ggcorrplot(cor(M))
+```
+As can be seen in the plot above, two of the strongest correlations appear to be between the `wellness` and `green` categories, as well as between the `techie` and `informed`. We also note other, weaker, albeit intuitive correlations between types like `artist` and `gourmet`, or `familyfirst` and `informed`. These pairings are rather unsurprising, indicating that grouping the categories into "consumer types" is a reasonable way to approach the analysis of market segments.
+
+
+Next, I scaled and centered the data in preparation for clustering. After some experimentation, I decided to go with 4 clusters in order to present only the most interesting groupings and keep the analysis straightforward.
+
+By examining the clusters more closely we can obtain some surface-level information about H20Nutrients customers:
+
+```{r echo = FALSE}
+MarketCluster1
+```
+
+
+Cluster 1 exhibits the most tweets in the `wellness`, `gen_z` and `voyager` categories. This could be interpreted as a cluster of young, health-conscious users interested in travel.  
+
+```{r echo = FALSE}
+MarketCluster2
+```
+
+In Cluster 2 the category `informed` stands out significantly, as well as `voyager` which makes sense as travel aficionados want to be up to date on current events. It is probable that these customers are more versed in world issues than the average user, and might be more socially conscious, thus placing more weight on NutrientH20's stance on global and social issues.
+
+```{r echo = FALSE}
+MarketCluster3
+```
+
+
+The category `wellness` stands out significantly in Cluster 3, as well as `gourmet` to  a lesser extent. These health-conscious users likely place great importance on the quality and nutritional benefits of their food, hinting that NutrientH20 may want to address issues such as artificial colorings, natural ingredients, and sugar content when marketing their drinks.
+
+```{r echo = FALSE}
+MarketCluster4
+```
+
+Cluster 4 has a high amount of the categories `artist`, `gourmet`, and `gen_z` among others. This can be conceptualized as a group of young, artistically-inclined customers who may be best marketed to by "cool" advertisements or packaging i.e. well-designed, aesthetically unique, and possibly even inspired by current artistic trends.
+
+In conclusion, such market segment analysis are likely limited in their utility. While the segments provide some information about the characteristics of NutrientH20's customer base, they do not give the full story. At best, the company can make some inference about how to optimally market to their consumers. It should be noted however, that across clusters, categories such as health and wellness, current issues and Gen Z are rather prominent. This seems to indicate that NutrientH20's customers are young, socially-conscious people who place great emphasis on their health. Ergo, NutrientH20 could investigate shifting its marketing and advertisement to portary itself as a modern, socially aware company whose products promote wellness.
+
+
+## Groceries
+
+
+```{r, warning=FALSE, echo=FALSE, include=FALSE}
+library(tidyverse)
+library(arules) 
+library(arulesViz)
+groceries = read.delim("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/groceries.txt", header = FALSE)
+groceries = as.data.frame(groceries)
+```
+
+I began by computing the associated rules, and distilled them into subsets informed byconfidence, lift and support. Specifically, I chose a confidence of 80%, a support of 2%, and a minimum lift of 1. I determined that these parameters were best suited for realizing the relationships between various baskets of groceries. The low level of support was chosen to reflect the fact that the variety of grocery items present in the dataset was not particularly high.The results are presented below:
+
+```{r , warning=FALSE, echo=FALSE, include=FALSE}
+lists <- strsplit(groceries$V1, split = ",")
+all_lists <- lapply(lists, unique)
+groceries_trans = as(all_lists, "transactions")
+grocery_rules = apriori(groceries_trans, 
+	parameter=list(support=.001, confidence=.2, maxlen=1))
+```
+
+```{r, warning=FALSE, echo=FALSE, include=FALSE}                         
+arules::inspect(grocery_rules)
+arules::inspect(subset(grocery_rules, lift > 1))
+arules::inspect(subset(grocery_rules, confidence > 0.23))
+arules::inspect(subset(grocery_rules, lift > 1 & confidence > 0.04))
+```
+
+```{r, warning=FALSE, echo=FALSE}
+plot(grocery_rules, main="One Rule Scatter Plot")
+```
+
+```{r, warning=FALSE, echo=FALSE}
+plot(grocrules_2, main="11 Rule Scatter Plot")
+```
+
+*Network Graph*
+
+```{r, warning=FALSE, echo=FALSE}
+plot(head(grocrules_2, 5, by='lift'), method='graph')
+
+```
+The network graph above provides a convenient and intuitive way to visualuze associations between the products. We note that larger labels correspond to a higher frequency of transactions. First, a strong association between “whole milk” and “other vegetables" can be observed. A possible reason for this is that these goods are key to the average diet and are likely purchased together when grocery shopping. The relationship between "other vegetables", "root vegetables" and fruits is also unsurprising. These goods are usually located in the same general area in most grocery stores. Thus, a customer shopping for say, tomatoes, may see zucchini or oranges on sale nearby and add them to their basket. It seems plausible that having some fruit/vegetable on your shopping list increases the probability of purchasing another fruit/vegetable. The relationship between the aforementioned goods exhibits a very high lift which hints at various vegetables being complementary goods. Indeed, it is somewhat unusual to consume one vegetable at a time. Instead, people tend to purchase many different kinds and use them as ingredients in stews, soups, or salads, hence the complementarity. Finally, the association between whole milk and butter is also unsurprising given that diary products are usually found next to each other in the same refrigerator in most grocery stores.
+
+
+In summary, the rules I generated all hinged on the same basic intuition that the purchase of one good drives the purchase of another related good, given that similar foods are grouped together in stores. Finally, we note that lift might be the most important metrics vis-a-vis the aforementioned intuition as is reflects the conditional probability of purchasing a good from one group, given that a good from another group has already been bought. Ergo, unlike confidence and support, lift accounts for statistical.
+
+
